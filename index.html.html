@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bitcoin Sentiment × Trader Performance — Hyperliquid Analysis</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #080b10;
+    --surface: #0d1117;
+    --border: #1e2532;
+    --text: #e6edf3;
+    --muted: #7d8590;
+    --accent: #f0b429;
+    --green: #3fb950;
+    --red: #f85149;
+    --blue: #58a6ff;
+    --purple: #a371f7;
+    --orange: #f0883e;
+    --teal: #39d353;
+    --fear-extreme: #f85149;
+    --fear: #f0883e;
+    --neutral: #e3b341;
+    --greed: #3fb950;
+    --greed-extreme: #238636;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    position: relative;
+    padding: 60px 60px 40px;
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -120px; right: -80px;
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(240,180,41,.12) 0%, transparent 65%);
+    pointer-events: none;
+  }
+  .hero-tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid rgba(240,180,41,.3);
+    padding: 4px 10px;
+    border-radius: 2px;
+    margin-bottom: 18px;
+  }
+  .hero h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(28px, 4vw, 52px);
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -1px;
+    max-width: 700px;
+    margin-bottom: 16px;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero-meta {
+    display: flex; gap: 32px; flex-wrap: wrap;
+    color: var(--muted); font-size: 11px; margin-top: 20px;
+  }
+  .hero-meta strong { color: var(--text); }
+
+  /* ── LAYOUT ── */
+  .container { max-width: 1280px; margin: 0 auto; padding: 0 60px 80px; }
+  
+  .section-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    padding: 40px 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── STAT CARDS ── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .stat-card {
+    background: var(--surface);
+    padding: 24px 20px;
+    position: relative;
+  }
+  .stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .stat-card.gold::after { background: var(--accent); }
+  .stat-card.green::after { background: var(--green); }
+  .stat-card.blue::after { background: var(--blue); }
+  .stat-card.purple::after { background: var(--purple); }
+  .stat-card.orange::after { background: var(--orange); }
+  .stat-card.teal::after { background: var(--teal); }
+
+  .stat-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .stat-value {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .stat-sub { font-size: 11px; color: var(--muted); }
+
+  /* ── CHART PANELS ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+  }
+  .panel-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .panel-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+  .chart-wrap { position: relative; }
+
+  /* ── SENTIMENT BARS (manual) ── */
+  .sent-bar-wrap { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
+  .sent-row { display: flex; flex-direction: column; gap: 4px; }
+  .sent-header { display: flex; justify-content: space-between; font-size: 11px; }
+  .sent-name { font-weight: 500; }
+  .sent-vals { color: var(--muted); display: flex; gap: 14px; }
+  .sent-vals span { display: flex; gap: 4px; }
+  .bar-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+
+  /* ── INSIGHT BOX ── */
+  .insights-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .insight-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 22px;
+    border-left: 3px solid;
+  }
+  .insight-card.key { border-left-color: var(--accent); }
+  .insight-card.warning { border-left-color: var(--red); }
+  .insight-card.opportunity { border-left-color: var(--green); }
+  .insight-card.strategy { border-left-color: var(--blue); }
+
+  .insight-icon { font-size: 20px; margin-bottom: 10px; }
+  .insight-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .insight-body { font-size: 11.5px; color: var(--muted); line-height: 1.7; }
+  .insight-body strong { color: var(--text); }
+
+  /* ── TABLE ── */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .data-table th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table td { padding: 10px 12px; border-bottom: 1px solid rgba(30,37,50,.5); }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: rgba(255,255,255,.02); }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .5px;
+  }
+  .badge-ef { background: rgba(248,81,73,.15); color: var(--fear-extreme); }
+  .badge-f  { background: rgba(240,136,62,.15); color: var(--fear); }
+  .badge-n  { background: rgba(227,179,65,.15); color: var(--neutral); }
+  .badge-g  { background: rgba(63,185,80,.15); color: var(--green); }
+  .badge-eg { background: rgba(35,134,54,.15); color: var(--teal); }
+
+  .pos { color: var(--green); }
+  .neg { color: var(--red); }
+
+  /* ── STRATEGY TABLE ── */
+  .strategy-grid { display: grid; grid-template-columns: 1fr; gap: 0; }
+  .strat-row {
+    display: grid;
+    grid-template-columns: 160px 1fr 120px;
+    gap: 24px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: start;
+  }
+  .strat-row:last-child { border-bottom: none; }
+  .strat-condition { font-weight: 500; color: var(--text); }
+  .strat-action { color: var(--muted); font-size: 12px; line-height: 1.6; }
+  .strat-signal {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 3px;
+    text-align: center;
+    align-self: start;
+  }
+  .sig-buy { background: rgba(63,185,80,.15); color: var(--green); }
+  .sig-short { background: rgba(248,81,73,.15); color: var(--red); }
+  .sig-caution { background: rgba(227,179,65,.15); color: var(--neutral); }
+  .sig-hold { background: rgba(88,166,255,.15); color: var(--blue); }
+
+  /* ── FOOTER ── */
+  .footer {
+    border-top: 1px solid var(--border);
+    padding: 20px 60px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  @media (max-width: 900px) {
+    .hero, .container { padding-left: 24px; padding-right: 24px; }
+    .grid-2, .grid-3, .grid-2-1, .insights-grid { grid-template-columns: 1fr; }
+    .footer { padding: 20px 24px; flex-direction: column; gap: 8px; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-tag">Interview Assignment — Quantitative Analysis</div>
+  <h1>Bitcoin Fear &amp; Greed<br><span>× Hyperliquid Trader Performance</span></h1>
+  <div class="hero-meta">
+    <div><strong>Dataset A</strong> — Bitcoin Market Sentiment (Fear/Greed Index)</div>
+    <div><strong>Dataset B</strong> — Hyperliquid Historical Trades (32 traders)</div>
+    <div><strong>Period</strong> — May 2023 – May 2025</div>
+    <div><strong>Total Trades</strong> — 211,224 &nbsp;|&nbsp; <strong>Closed PnL Trades</strong> — 104,408</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- KPI STRIP -->
+  <div class="section-title">Portfolio Overview</div>
+  <div class="stats-grid">
+    <div class="stat-card gold">
+      <div class="stat-label">Total Volume Traded</div>
+      <div class="stat-value" style="color:var(--accent)">$1.19B</div>
+      <div class="stat-sub">USD across 32 traders</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">Total Realized PnL</div>
+      <div class="stat-value" style="color:var(--green)">$10.3M</div>
+      <div class="stat-sub">net profit from closed positions</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-label">Total Trades</div>
+      <div class="stat-value" style="color:var(--blue)">211,224</div>
+      <div class="stat-sub">104,408 position-closing</div>
+    </div>
+    <div class="stat-card purple">
+      <div class="stat-label">Avg Win Rate</div>
+      <div class="stat-value" style="color:var(--purple)">82%</div>
+      <div class="stat-sub">across all sentiment regimes</div>
+    </div>
+    <div class="stat-card orange">
+      <div class="stat-label">Unique Traders</div>
+      <div class="stat-value" style="color:var(--orange)">32</div>
+      <div class="stat-sub">Hyperliquid wallets analyzed</div>
+    </div>
+    <div class="stat-card teal">
+      <div class="stat-label">Sentiment Days</div>
+      <div class="stat-value" style="color:var(--teal)">2,644</div>
+      <div class="stat-sub">Feb 2018 – May 2025</div>
+    </div>
+  </div>
+
+  <!-- SENTIMENT PNL BREAKDOWN -->
+  <div class="section-title">Performance by Market Sentiment</div>
+  <div class="grid-2">
+
+    <div class="panel">
+      <div class="panel-title">Win Rate by Sentiment Regime</div>
+      <div class="panel-sub">% of closed trades ending profitable</div>
+      <div class="chart-wrap" style="height:220px">
+        <canvas id="winRateChart"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Average PnL per Trade ($)</div>
+      <div class="panel-sub">Mean realized profit per closed position</div>
+      <div class="chart-wrap" style="height:220px">
+        <canvas id="avgPnlChart"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- SENTIMENT TABLE -->
+  <div class="panel" style="margin-top:16px">
+    <div class="panel-title">Full Sentiment Breakdown</div>
+    <div class="panel-sub">Detailed performance metrics across all five sentiment regimes</div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Sentiment</th>
+          <th>Trades</th>
+          <th>Win Rate</th>
+          <th>Avg PnL / Trade</th>
+          <th>Total PnL</th>
+          <th>Avg Trade Size</th>
+          <th>Dominant Direction</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="badge badge-ef">Extreme Fear</span></td>
+          <td>10,406</td>
+          <td class="pos">76%</td>
+          <td class="pos">$71.03</td>
+          <td class="pos">$739,110</td>
+          <td>$5,468</td>
+          <td>Long (60%)</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-f">Fear</span></td>
+          <td>29,808</td>
+          <td class="pos">87%</td>
+          <td class="pos">$112.63</td>
+          <td class="pos">$3,357,155</td>
+          <td>$8,041</td>
+          <td>Long (58%)</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-n">Neutral</span></td>
+          <td>18,159</td>
+          <td class="pos">82%</td>
+          <td class="pos">$71.20</td>
+          <td class="pos">$1,292,921</td>
+          <td>$5,556</td>
+          <td>Long (55%)</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-g">Greed</span></td>
+          <td>25,176</td>
+          <td class="pos">77%</td>
+          <td class="pos">$85.40</td>
+          <td class="pos">$2,150,129</td>
+          <td>$5,439</td>
+          <td>Short (68%)</td>
+        </tr>
+        <tr>
+          <td><span class="badge badge-eg">Extreme Greed</span></td>
+          <td>20,853</td>
+          <td class="pos">89%</td>
+          <td class="pos">$130.21</td>
+          <td class="pos">$2,715,171</td>
+          <td>$2,780</td>
+          <td>Short (66%)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- LONG VS SHORT -->
+  <div class="section-title">Directional Alpha: Long vs Short</div>
+  <div class="grid-2">
+
+    <div class="panel">
+      <div class="panel-title">Long vs Short Avg PnL by Sentiment</div>
+      <div class="panel-sub">When to go long, when to go short</div>
+      <div class="chart-wrap" style="height:240px">
+        <canvas id="longShortChart"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Key Directional Signals</div>
+      <div class="panel-sub">Edge identified from long/short breakdown</div>
+      <div class="sent-bar-wrap" style="margin-top:10px">
+
+        <div style="font-size:11px; color:var(--muted); margin-bottom:8px; font-weight:600; letter-spacing:1px; text-transform:uppercase">LONG favors (avg PnL $)</div>
+        <div class="sent-row">
+          <div class="sent-header"><span class="sent-name" style="color:var(--orange)">Extreme Fear</span><span>$81.13</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:49%;background:var(--orange)"></div></div>
+        </div>
+        <div class="sent-row">
+          <div class="sent-header"><span class="sent-name" style="color:var(--greed)">Greed</span><span>$89.22</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:54%;background:var(--greed)"></div></div>
+        </div>
+        <div class="sent-row">
+          <div class="sent-header"><span class="sent-name" style="color:var(--fear)">Fear</span><span>$82.94</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:50%;background:var(--fear)"></div></div>
+        </div>
+
+        <div style="font-size:11px; color:var(--muted); margin-top:16px; margin-bottom:8px; font-weight:600; letter-spacing:1px; text-transform:uppercase">SHORT favors (avg PnL $)</div>
+        <div class="sent-row">
+          <div class="sent-header"><span class="sent-name" style="color:var(--greed-extreme)">Extreme Greed</span><span style="color:var(--teal)">$166.17 🏆</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:100%;background:var(--teal)"></div></div>
+        </div>
+        <div class="sent-row">
+          <div class="sent-header"><span class="sent-name" style="color:var(--fear)">Fear</span><span>$153.54</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:92%;background:var(--fear)"></div></div>
+        </div>
+        <div class="sent-row">
+          <div class="sent-header"><span class="sent-name" style="color:var(--neutral)">Neutral</span><span>$93.69</span></div>
+          <div class="bar-track"><div class="bar-fill" style="width:56%;background:var(--neutral)"></div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- VOLUME & MONTHLY TREND -->
+  <div class="section-title">Volume & Temporal Patterns</div>
+  <div class="grid-2">
+
+    <div class="panel">
+      <div class="panel-title">Trading Volume (USD) by Sentiment</div>
+      <div class="panel-sub">Where capital was deployed most heavily</div>
+      <div class="chart-wrap" style="height:220px">
+        <canvas id="volumeChart"></canvas>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Monthly Avg PnL vs Fear/Greed Index</div>
+      <div class="panel-sub">Last 12 months — sentiment value overlaid</div>
+      <div class="chart-wrap" style="height:220px">
+        <canvas id="monthlyChart"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- HOUR ANALYSIS -->
+  <div class="section-title">Intraday Edge</div>
+  <div class="grid-2-1">
+    <div class="panel">
+      <div class="panel-title">Best Trading Hours (IST) by Avg PnL</div>
+      <div class="panel-sub">Intraday timing alpha — top 8 hours ranked</div>
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="hourChart"></canvas>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Liquidation Events</div>
+      <div class="panel-sub">By sentiment regime</div>
+      <div style="margin-top:16px">
+        <div style="font-size:12px; color:var(--muted); line-height:1.8">
+          <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border)">
+            <span><span class="badge badge-g">Greed</span></span>
+            <span class="neg">1 liquidation</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border)">
+            <span><span class="badge badge-ef">Extreme Fear</span></span>
+            <span class="pos">0 liquidations</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border)">
+            <span><span class="badge badge-eg">Extreme Greed</span></span>
+            <span class="pos">0 liquidations</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--border)">
+            <span><span class="badge badge-f">Fear</span></span>
+            <span class="pos">0 liquidations</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; padding:8px 0">
+            <span><span class="badge badge-n">Neutral</span></span>
+            <span class="pos">0 liquidations</span>
+          </div>
+        </div>
+        <div style="margin-top:14px; font-size:11px; color:var(--muted); line-height:1.7">
+          Only <strong style="color:var(--text)">1 liquidation event</strong> was recorded — during a Greed regime, suggesting overconfident over-leveraging when markets feel bullish. Risk management is strongest when fear dominates.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KEY INSIGHTS -->
+  <div class="section-title">Key Findings & Insights</div>
+  <div class="insights-grid">
+
+    <div class="insight-card key">
+      <div class="insight-icon">🏆</div>
+      <div class="insight-title">Extreme Greed = Highest Avg PnL</div>
+      <div class="insight-body">
+        Surprisingly, <strong>Extreme Greed produced the highest avg PnL per trade ($130.21)</strong> and the highest win rate (89%). Traders here are predominantly <strong>short-biased</strong> — successfully fading the euphoria. The $166/trade short avg PnL during Extreme Greed is the single best signal in the dataset.
+      </div>
+    </div>
+
+    <div class="insight-card opportunity">
+      <div class="insight-icon">📉</div>
+      <div class="insight-title">Fear Regime = Best Shorting Alpha</div>
+      <div class="insight-body">
+        During regular Fear periods, short positions generate a remarkable <strong>$153.54 avg PnL</strong> — second only to Extreme Greed shorts. This is counter-intuitive: fear doesn't always mean the bottom. Traders profitably <strong>shorting further drawdowns</strong> during fear is a key hidden pattern.
+      </div>
+    </div>
+
+    <div class="insight-card warning">
+      <div class="insight-icon">⚠️</div>
+      <div class="insight-title">Greed Regime — Volume Trap</div>
+      <div class="insight-body">
+        Greed sees a <strong>massive volume spike</strong> ($288M+) but has the <strong>second-lowest avg PnL ($85.40)</strong> and win rate (77%). The only liquidation also occurred here. Traders over-trade during greed, diluting returns and increasing risk — a classic <strong>FOMO trap</strong>.
+      </div>
+    </div>
+
+    <div class="insight-card strategy">
+      <div class="insight-icon">⏰</div>
+      <div class="insight-title">The 12:00–13:00 IST Edge</div>
+      <div class="insight-body">
+        Trades executed at <strong>12:00–13:00 IST produce $243 avg PnL</strong> — nearly 3× the dataset average. This coincides with European market open and Asian close. A <strong>time-filtered strategy</strong> restricting entries to 10:00–13:00 IST could meaningfully boost risk-adjusted returns.
+      </div>
+    </div>
+
+    <div class="insight-card key">
+      <div class="insight-icon">🧠</div>
+      <div class="insight-title">Sentiment Correlation is Weak — But Regime Matters</div>
+      <div class="insight-body">
+        The raw correlation between daily fear/greed value and avg PnL is only <strong>+0.0013</strong> (near zero). However, <strong>regime classification</strong> (the 5-bucket label) reveals significant behavioral differences. The index is more useful as a <strong>behavioral classifier than a price predictor</strong>.
+      </div>
+    </div>
+
+    <div class="insight-card opportunity">
+      <div class="insight-icon">💎</div>
+      <div class="insight-title">Fear Drives Volume, Greed Drives Returns</div>
+      <div class="insight-body">
+        Fear periods attract the <strong>most capital ($483M volume)</strong> and generate the <strong>most total PnL ($3.36M)</strong>, but Extreme Greed has the highest <strong>per-trade efficiency</strong>. This suggests a two-phase strategy: <strong>accumulate size in fear, optimize per-trade quality in greed</strong>.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- STRATEGY RECOMMENDATIONS -->
+  <div class="section-title">Actionable Strategy Framework</div>
+  <div class="panel">
+    <div class="panel-title">Sentiment-Driven Trading Rulebook</div>
+    <div class="panel-sub">Data-backed decision rules derived from 104,408 closed trade observations</div>
+    <div class="strategy-grid" style="margin-top:16px">
+
+      <div class="strat-row">
+        <div class="strat-condition"><span class="badge badge-ef">Extreme Fear</span><br><span style="font-size:11px;color:var(--muted)">FG Index 0–20</span></div>
+        <div class="strat-action"><strong style="color:var(--text)">Aggressive Long Entry.</strong> Win rate 76%, longs outperform shorts. Deploy larger size ($5,468 avg). Focus on quality over quantity — fewer, larger positions. Avoid shorting into capitulation.</div>
+        <div class="strat-signal sig-buy">BUY BIAS</div>
+      </div>
+
+      <div class="strat-row">
+        <div class="strat-condition"><span class="badge badge-f">Fear</span><br><span style="font-size:11px;color:var(--muted)">FG Index 21–40</span></div>
+        <div class="strat-action"><strong style="color:var(--text)">Dual-Direction Alpha.</strong> Best win rate (87%) of any regime. Both longs ($82.94) and shorts ($153.54) are profitable. Sizing up is warranted — avg trade size here is the highest ($8,041). This is the highest-opportunity regime overall.</div>
+        <div class="strat-signal sig-buy">FULL SIZE</div>
+      </div>
+
+      <div class="strat-row">
+        <div class="strat-condition"><span class="badge badge-n">Neutral</span><br><span style="font-size:11px;color:var(--muted)">FG Index 41–60</span></div>
+        <div class="strat-action"><strong style="color:var(--text)">Reduce Exposure.</strong> Lowest avg PnL ($71.20) and modest win rate (82%). Short side slightly outperforms longs. Transition period — wait for directional conviction. Keep positions smaller while market finds direction.</div>
+        <div class="strat-signal sig-caution">REDUCE SIZE</div>
+      </div>
+
+      <div class="strat-row">
+        <div class="strat-condition"><span class="badge badge-g">Greed</span><br><span style="font-size:11px;color:var(--muted)">FG Index 61–80</span></div>
+        <div class="strat-action"><strong style="color:var(--text)">Short-Bias, Discipline Required.</strong> Shorts narrowly outperform longs. Win rate drops to 77% — lowest after Extreme Fear. The sole liquidation occurred here. Avoid FOMO longs. Fade strength with disciplined short entries and tight stops.</div>
+        <div class="strat-signal sig-short">SHORT BIAS</div>
+      </div>
+
+      <div class="strat-row">
+        <div class="strat-condition"><span class="badge badge-eg">Extreme Greed</span><br><span style="font-size:11px;color:var(--muted)">FG Index 81–100</span></div>
+        <div class="strat-action"><strong style="color:var(--text)">Aggressive Short Entry — Best Signal.</strong> Highest win rate (89%), highest avg PnL ($130.21), shorts averaging $166.17. Use smaller individual size (data shows $2,780 avg) but take more trades. This is the dataset's most reliable contrarian signal.</div>
+        <div class="strat-signal sig-short">STRONG SHORT</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- METHODOLOGY -->
+  <div class="section-title">Methodology & Data Notes</div>
+  <div class="panel">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px; font-size:12px; color:var(--muted); line-height:1.8">
+      <div>
+        <div style="color:var(--text);font-weight:600;margin-bottom:8px">Data Processing</div>
+        Trader timestamps (IST format: DD-MM-YYYY HH:MM) were parsed and normalized to date for joining with the Fear/Greed index. Match rate: <strong style="color:var(--text)">99.997%</strong>. Closed PnL analysis restricted to non-zero PnL trades (104,408 of 211,224) representing actual position-close events.
+      </div>
+      <div>
+        <div style="color:var(--text);font-weight:600;margin-bottom:8px">Limitations</div>
+        Only 32 unique traders — results may not generalize. Fear/Greed Index is a lagging sentiment indicator. Short-alpha findings may reflect survivorship bias among sophisticated Hyperliquid users. Leverage data was not used in this analysis and could further refine risk-adjusted metrics.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  <div>Bitcoin Sentiment × Hyperliquid Trader Analysis — Interview Assignment</div>
+  <div>Data: 211,224 trades · 32 Traders · May 2023–May 2025 · 2,644 Sentiment Days</div>
+</div>
+
+<script>
+const COLORS = {
+  ef: '#f85149', f: '#f0883e', n: '#e3b341', g: '#3fb950', eg: '#39d353',
+  blue: '#58a6ff', purple: '#a371f7', gold: '#f0b429'
+};
+const LABELS = ['Extreme Fear','Fear','Neutral','Greed','Extreme Greed'];
+const COLORS_ARR = [COLORS.ef, COLORS.f, COLORS.n, COLORS.g, COLORS.eg];
+
+Chart.defaults.color = '#7d8590';
+Chart.defaults.borderColor = '#1e2532';
+Chart.defaults.font.family = "'JetBrains Mono', monospace";
+Chart.defaults.font.size = 11;
+
+// 1. WIN RATE
+new Chart(document.getElementById('winRateChart'), {
+  type: 'bar',
+  data: {
+    labels: LABELS,
+    datasets: [{
+      data: [76, 87, 82, 77, 89],
+      backgroundColor: COLORS_ARR.map(c => c + '33'),
+      borderColor: COLORS_ARR,
+      borderWidth: 2,
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.raw}% win rate` } }
+    },
+    scales: {
+      y: { min: 60, max: 95, grid: { color: '#1e2532' },
+           ticks: { callback: v => v + '%' } },
+      x: { grid: { display: false },
+           ticks: { maxRotation: 0, font: { size: 9 } } }
+    }
+  }
+});
+
+// 2. AVG PNL
+new Chart(document.getElementById('avgPnlChart'), {
+  type: 'bar',
+  data: {
+    labels: LABELS,
+    datasets: [{
+      data: [71.03, 112.63, 71.20, 85.40, 130.21],
+      backgroundColor: COLORS_ARR.map(c => c + '33'),
+      borderColor: COLORS_ARR,
+      borderWidth: 2,
+      borderRadius: 4,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` $${ctx.raw.toFixed(2)} avg PnL` } }
+    },
+    scales: {
+      y: { grid: { color: '#1e2532' },
+           ticks: { callback: v => '$' + v } },
+      x: { grid: { display: false },
+           ticks: { maxRotation: 0, font: { size: 9 } } }
+    }
+  }
+});
+
+// 3. LONG vs SHORT
+new Chart(document.getElementById('longShortChart'), {
+  type: 'bar',
+  data: {
+    labels: LABELS,
+    datasets: [
+      {
+        label: 'Long Avg PnL',
+        data: [81.13, 82.94, 52.85, 89.22, 61.90],
+        backgroundColor: COLORS.blue + '44',
+        borderColor: COLORS.blue,
+        borderWidth: 2,
+        borderRadius: 3,
+      },
+      {
+        label: 'Short Avg PnL',
+        data: [55.85, 153.54, 93.69, 81.08, 166.17],
+        backgroundColor: COLORS.purple + '44',
+        borderColor: COLORS.purple,
+        borderWidth: 2,
+        borderRadius: 3,
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'top', labels: { boxWidth: 12, padding: 16, font: { size: 11 } } },
+      tooltip: { callbacks: { label: ctx => ` ${ctx.dataset.label}: $${ctx.raw.toFixed(2)}` } }
+    },
+    scales: {
+      y: { grid: { color: '#1e2532' }, ticks: { callback: v => '$' + v } },
+      x: { grid: { display: false }, ticks: { maxRotation: 0, font: { size: 9 } } }
+    }
+  }
+});
+
+// 4. VOLUME
+new Chart(document.getElementById('volumeChart'), {
+  type: 'doughnut',
+  data: {
+    labels: LABELS,
+    datasets: [{
+      data: [114484261, 483324790, 180242063, 288582495, 124465165],
+      backgroundColor: COLORS_ARR.map(c => c + '55'),
+      borderColor: COLORS_ARR,
+      borderWidth: 2,
+      hoverOffset: 8
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    cutout: '65%',
+    plugins: {
+      legend: { position: 'right', labels: { boxWidth: 10, padding: 12, font: { size: 10 } } },
+      tooltip: { callbacks: {
+        label: ctx => ` $${(ctx.raw/1e6).toFixed(1)}M`
+      }}
+    }
+  }
+});
+
+// 5. MONTHLY
+const months = ['Jun-24','Jul-24','Aug-24','Sep-24','Oct-24','Nov-24','Dec-24','Jan-25','Feb-25','Mar-25','Apr-25','May-25'];
+const avgPnl = [139.4, 108.3, -309.6, 212.5, 312.6, 43.8, 186.8, 81.6, 121.6, 101.9, 50.2, 80.9];
+const fgVal  = [70.9, 66.3, 33.6, 41.7, 63.2, 83.1, 77.1, 72.1, 44.8, 31.5, 43.8, 53.0];
+
+new Chart(document.getElementById('monthlyChart'), {
+  type: 'line',
+  data: {
+    labels: months,
+    datasets: [
+      {
+        label: 'Avg PnL ($)',
+        data: avgPnl,
+        borderColor: COLORS.gold,
+        backgroundColor: COLORS.gold + '18',
+        borderWidth: 2,
+        pointRadius: 4,
+        pointBackgroundColor: COLORS.gold,
+        tension: 0.35,
+        fill: true,
+        yAxisID: 'y'
+      },
+      {
+        label: 'FG Index',
+        data: fgVal,
+        borderColor: COLORS.blue,
+        backgroundColor: 'transparent',
+        borderWidth: 1.5,
+        borderDash: [4,3],
+        pointRadius: 3,
+        pointBackgroundColor: COLORS.blue,
+        tension: 0.35,
+        yAxisID: 'y2'
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { position: 'top', labels: { boxWidth: 12, padding: 14, font: { size: 10 } } }
+    },
+    scales: {
+      y: { grid: { color: '#1e2532' }, ticks: { callback: v => '$' + v } },
+      y2: { position: 'right', grid: { display: false }, min: 0, max: 100,
+            ticks: { callback: v => v } },
+      x: { grid: { display: false }, ticks: { font: { size: 9 } } }
+    }
+  }
+});
+
+// 6. HOUR CHART
+new Chart(document.getElementById('hourChart'), {
+  type: 'bar',
+  data: {
+    labels: ['12:00','07:00','11:00','10:00','13:00','14:00','09:00','06:00'],
+    datasets: [{
+      label: 'Avg PnL ($)',
+      data: [243.82, 171.34, 133.01, 127.28, 118.71, 95.4, 88.2, 82.1],
+      backgroundColor: [
+        COLORS.gold+'88', COLORS.green+'66', COLORS.green+'55', COLORS.green+'44',
+        COLORS.blue+'66', COLORS.blue+'55', COLORS.blue+'44', COLORS.blue+'33'
+      ],
+      borderColor: [
+        COLORS.gold, COLORS.green, COLORS.green, COLORS.green,
+        COLORS.blue, COLORS.blue, COLORS.blue, COLORS.blue
+      ],
+      borderWidth: 2,
+      borderRadius: 4
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ` $${ctx.raw} avg PnL` } }
+    },
+    scales: {
+      y: { grid: { color: '#1e2532' }, ticks: { callback: v => '$'+v } },
+      x: { grid: { display: false } }
+    }
+  }
+});
+</script>
+</body>
+</html>
